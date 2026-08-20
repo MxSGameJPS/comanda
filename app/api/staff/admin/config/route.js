@@ -19,9 +19,9 @@ async function owned(table, id, restaurantId, select = "id") {
   return rows?.[0] || null;
 }
 
-async function requireEmployeeAdmin(profile) {
+function requireConfigAdmin(profile) {
   if (!["OWNER", "ADMIN"].includes(profile.role)) {
-    const error = new Error("Somente proprietário ou administrador pode gerenciar acessos.");
+    const error = new Error("Somente proprietário ou administrador pode alterar os cadastros.");
     error.status = 403;
     throw error;
   }
@@ -47,7 +47,8 @@ export async function GET() {
 export async function POST(request) {
   let createdUserId = null;
   try {
-    const { profile } = await requireStaff(["OWNER", "ADMIN", "MANAGER"]);
+    const { profile } = await requireStaff(["OWNER", "ADMIN"]);
+    requireConfigAdmin(profile);
     const { resource, data = {} } = await request.json();
     const restaurantId = profile.restaurant_id;
 
@@ -85,7 +86,6 @@ export async function POST(request) {
     }
 
     if (resource === "employee") {
-      await requireEmployeeAdmin(profile);
       const role = String(data.role || "").toUpperCase();
       if (!employeeRoles.includes(role)) return bad("Função inválida.");
       if (role === "ADMIN" && profile.role !== "OWNER") return bad("Somente o proprietário pode criar outro administrador.", 403);
@@ -110,7 +110,8 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
-    const { profile } = await requireStaff(["OWNER", "ADMIN", "MANAGER"]);
+    const { profile } = await requireStaff(["OWNER", "ADMIN"]);
+    requireConfigAdmin(profile);
     const { resource, id, data = {} } = await request.json();
     const restaurantId = profile.restaurant_id;
 
@@ -168,7 +169,6 @@ export async function PATCH(request) {
     }
 
     if (resource === "employee") {
-      await requireEmployeeAdmin(profile);
       const target = await owned("employee_profiles", id, restaurantId, "id,role,is_active");
       if (!target) return bad("Funcionário não encontrado.", 404);
       if (id === profile.id && data.isActive === false) return bad("Você não pode desativar seu próprio acesso.");
