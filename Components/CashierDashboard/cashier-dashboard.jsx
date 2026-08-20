@@ -27,7 +27,7 @@ export default function CashierDashboard() {
     load();
     let unsubscribe = () => {};
     subscribeToPostgresChanges({ channel: "cashier-sessions", table: "table_sessions", onChange: load }).then((cleanup) => { unsubscribe = cleanup; });
-    const fallback = window.setInterval(load, 15000);
+    const fallback = window.setInterval(load, 3000);
     return () => { unsubscribe(); window.clearInterval(fallback); };
   }, [load]);
 
