@@ -13,11 +13,12 @@ export default function WaiterOrderModal({ table, categories, products, onClose,
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [voidingItem, setVoidingItem] = useState(null);
+  const firstCategoryId = categories[0]?.id || null;
 
   useEffect(() => {
-    if (!categories.length) return;
-    setActiveCategory((current) => current && categories.some((category) => category.id === current) ? current : categories[0].id);
-  }, [categories]);
+    if (!firstCategoryId) return;
+    setActiveCategory((current) => current && categories.some((category) => category.id === current) ? current : firstCategoryId);
+  }, [categories, firstCategoryId]);
 
   useEffect(() => {
     setCart([]);
@@ -25,8 +26,8 @@ export default function WaiterOrderModal({ table, categories, products, onClose,
     setSending(false);
     setError("");
     setVoidingItem(null);
-    if (categories.length) setActiveCategory(categories[0].id);
-  }, [table?.sessionId]);
+    if (firstCategoryId) setActiveCategory(firstCategoryId);
+  }, [firstCategoryId, table?.sessionId]);
 
   const visibleProducts = products.filter((product) => product.category_id === activeCategory);
   const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0), [cart]);
