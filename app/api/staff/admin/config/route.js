@@ -53,8 +53,10 @@ export async function POST(request) {
 
     if (resource === "table") {
       const number = Number(data.number);
+      const seats = data.seats ? Number(data.seats) : null;
       if (!Number.isInteger(number) || number < 1) return bad("Informe um número de mesa válido.");
-      const rows = await restInsert("restaurant_tables", { restaurant_id: restaurantId, number, label: data.label?.trim() || null, seats: data.seats ? Number(data.seats) : null, active: true }, { admin: true });
+      if (seats !== null && (!Number.isInteger(seats) || seats < 1)) return bad("Informe uma quantidade de lugares válida.");
+      const rows = await restInsert("restaurant_tables", { restaurant_id: restaurantId, number, label: data.label?.trim() || null, seats, active: true }, { admin: true });
       return NextResponse.json({ item: rows[0] });
     }
 
@@ -72,12 +74,13 @@ export async function POST(request) {
     }
 
     if (resource === "product") {
-      if (!data.name?.trim() || Number(data.price) < 0 || !Number.isFinite(Number(data.price))) return bad("Informe nome e preço válido.");
+      const price = Number(data.price);
+      if (!data.name?.trim() || price < 0 || !Number.isFinite(price)) return bad("Informe nome e preço válido.");
       const category = data.categoryId ? await owned("categories", data.categoryId, restaurantId) : null;
       const station = data.stationId ? await owned("prep_stations", data.stationId, restaurantId) : null;
       if (data.categoryId && !category) return bad("Categoria inválida.");
       if (data.stationId && !station) return bad("Estação inválida.");
-      const rows = await restInsert("products", { restaurant_id: restaurantId, name: data.name.trim(), description: data.description?.trim() || null, price: Number(data.price), category_id: category?.id || null, prep_station_id: station?.id || null, sort_order: Number(data.sortOrder || 0), active: true }, { admin: true });
+      const rows = await restInsert("products", { restaurant_id: restaurantId, name: data.name.trim(), description: data.description?.trim() || null, price, category_id: category?.id || null, prep_station_id: station?.id || null, sort_order: Number(data.sortOrder || 0), active: true }, { admin: true });
       return NextResponse.json({ item: rows[0] });
     }
 
@@ -121,8 +124,16 @@ export async function PATCH(request) {
       const patch = {};
       if (data.active !== undefined) patch.active = Boolean(data.active);
       if (data.label !== undefined) patch.label = data.label?.trim() || null;
-      if (data.seats !== undefined) patch.seats = data.seats ? Number(data.seats) : null;
-      if (data.number !== undefined) patch.number = Number(data.number);
+      if (data.seats !== undefined) {
+        const seats = data.seats ? Number(data.seats) : null;
+        if (seats !== null && (!Number.isInteger(seats) || seats < 1)) return bad("Quantidade de lugares inválida.");
+        patch.seats = seats;
+      }
+      if (data.number !== undefined) {
+        const number = Number(data.number);
+        if (!Number.isInteger(number) || number < 1) return bad("Número de mesa inválido.");
+        patch.number = number;
+      }
       const rows = await restUpdate("restaurant_tables", { id: `eq.${id}`, restaurant_id: `eq.${restaurantId}` }, patch, { admin: true });
       return NextResponse.json({ item: rows[0] });
     }
@@ -131,10 +142,27 @@ export async function PATCH(request) {
       const table = resource === "category" ? "categories" : resource === "station" ? "prep_stations" : "products";
       const item = await owned(table, id, restaurantId);
       if (!item) return bad("Cadastro não encontrado.", 404);
+
+      if (data.active === false && resource === "category") {
+        const products = await restSelect("products", { category_id: `eq.${id}`, restaurant_id: `eq.${restaurantId}`, active: "eq.true", select: "id", limit: 1 }, { admin: true });
+        if (products.length) return bad("Desative ou mova os produtos ativos desta categoria antes de desativá-la.", 409);
+      }
+      if (data.active === false && resource === "station") {
+        const products = await restSelect("products", { prep_station_id: `eq.${id}`, restaurant_id: `eq.${restaurantId}`, active: "eq.true", select: "id", limit: 1 }, { admin: true });
+        if (products.length) return bad("Existem produtos ativos enviados para esta estação.", 409);
+      }
+
       const patch = {};
       if (data.active !== undefined) patch.active = Boolean(data.active);
-      if (resource === "product" && data.price !== undefined) patch.price = Number(data.price);
-      if (data.name !== undefined) patch.name = data.name.trim();
+      if (resource === "product" && data.price !== undefined) {
+        const price = Number(data.price);
+        if (!Number.isFinite(price) || price < 0) return bad("Preço inválido.");
+        patch.price = price;
+      }
+      if (data.name !== undefined) {
+        if (!String(data.name).trim()) return bad("Nome inválido.");
+        patch.name = String(data.name).trim();
+      }
       const rows = await restUpdate(table, { id: `eq.${id}`, restaurant_id: `eq.${restaurantId}` }, patch, { admin: true });
       return NextResponse.json({ item: rows[0] });
     }
