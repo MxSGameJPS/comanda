@@ -6,6 +6,13 @@ import styles from "./waiter-order-modal.module.css";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
+function statusLabel(status) {
+  if (status === "AVAILABLE") return "Livre";
+  if (status === "PAYMENT_PENDING") return "Aguardando pagamento";
+  if (status === "OPEN") return "Em atendimento";
+  return status || "Sem comanda";
+}
+
 export default function WaiterOrderModal({ table, categories, products, onClose, onSend, onVoid }) {
   const [activeCategory, setActiveCategory] = useState(null);
   const [cart, setCart] = useState([]);
@@ -28,6 +35,15 @@ export default function WaiterOrderModal({ table, categories, products, onClose,
     setVoidingItem(null);
     if (firstCategoryId) setActiveCategory(firstCategoryId);
   }, [firstCategoryId, table?.sessionId]);
+
+  useEffect(() => {
+    if (!table) return;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !sending) onClose?.();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, sending, table]);
 
   const visibleProducts = products.filter((product) => product.category_id === activeCategory);
   const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0), [cart]);
@@ -62,10 +78,10 @@ export default function WaiterOrderModal({ table, categories, products, onClose,
     }
   }
 
-  return <div className={styles.backdrop} role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !sending && onClose()}>
+  return <div className={styles.backdrop} role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !sending && onClose?.()}>
     <section aria-modal="true" className={styles.modal} role="dialog">
-      <header className={styles.header}><div><span>Mesa {String(table.number).padStart(2, "0")}</span><h2>{table.customer}</h2><p>{table.whatsapp}</p></div><button disabled={sending} onClick={onClose} type="button">×</button></header>
-      <div className={styles.summary}><div><span>Comanda</span><strong>{money.format(Number(table.total ?? table.subtotal ?? 0))}</strong></div><div><span>Status</span><strong>{table.status === "PAYMENT_PENDING" ? "Aguardando pagamento" : "Em atendimento"}</strong></div></div>
+      <header className={styles.header}><div><span>Mesa {String(table.number).padStart(2, "0")}</span>{table.customer && <h2>{table.customer}</h2>}{table.whatsapp && <p>{table.whatsapp}</p>}</div><button aria-label="Fechar" disabled={sending} onClick={() => onClose?.()} type="button">×</button></header>
+      <div className={styles.summary}><div><span>Comanda</span><strong>{money.format(Number(table.total ?? table.subtotal ?? 0))}</strong></div><div><span>Status</span><strong>{statusLabel(table.status)}</strong></div></div>
 
       <section className={styles.current}><div className={styles.sectionTitle}><h3>Itens da comanda</h3><span>{table.items?.length || 0} lançamento(s)</span></div>
         <div className={styles.itemList}>{table.items?.length ? table.items.map((item) => <article className={styles.currentItem} key={item.id}><div><strong>{item.quantity}× {item.product_name_snapshot}</strong><small>{item.observation || `${money.format(item.unit_price)} cada`}</small></div><div><span>{money.format(item.total_price)}</span><button onClick={() => setVoidingItem(item)} type="button">Cancelar</button></div></article>) : <p className={styles.empty}>Nenhum item lançado ainda.</p>}</div>
