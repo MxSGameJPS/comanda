@@ -89,7 +89,10 @@ export default function CustomerMenu({ tableCode }) {
     const form = new FormData(event.currentTarget);
     const name = String(form.get("name") || "").trim();
     const whatsapp = String(form.get("whatsapp") || "").trim();
-    if (!name || !whatsapp) return;
+    if (!name) {
+      setError("Informe seu nome para abrir a comanda.");
+      return;
+    }
 
     if (demo) {
       const openedAt = new Date().toISOString();
@@ -165,11 +168,11 @@ export default function CustomerMenu({ tableCode }) {
   if (!customer) {
     return <main className={styles.onboarding}><section className={styles.welcomeCard}>
       <div className={styles.tableBadge}>Mesa {tableLabel}</div><span className={styles.eyebrow}>Bem-vindo</span><h1>{loading ? "Carregando sua mesa..." : "Seu pedido começa aqui."}</h1>
-      <p>{loading ? "Estamos validando o QR Code e preparando o cardápio." : "Identificamos sua mesa. Informe seus dados para abrir a comanda e acessar o cardápio."}</p>
+      <p>{loading ? "Estamos validando o QR Code e preparando o cardápio." : "Identificamos sua mesa. Informe seu nome para abrir a comanda e acessar o cardápio."}</p>
       {error && <p className={styles.error} role="alert">{error}</p>}
       {!loading && table && <form className={styles.form} onSubmit={startSession}>
-        <label>Nome<input name="name" placeholder="Como podemos chamar você?" required /></label>
-        <label>WhatsApp<input name="whatsapp" inputMode="tel" placeholder="(51) 99999-9999" required /></label>
+        <label>Nome <span aria-hidden="true">*</span><input autoComplete="name" name="name" placeholder="Como podemos chamar você?" required /></label>
+        <label>WhatsApp <small>(opcional)</small><input autoComplete="tel" inputMode="tel" name="whatsapp" placeholder="(51) 99999-9999" /></label>
         <button disabled={sending} type="submit">{sending ? "Abrindo comanda..." : "Ver cardápio"}</button>
       </form>}
       <small>O horário de chegada é registrado quando a comanda é aberta.</small>
