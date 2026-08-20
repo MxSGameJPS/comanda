@@ -15,11 +15,24 @@ async function findSessionByToken(token) {
   return sessions?.[0] || null;
 }
 
-export async function GET() {
+async function sessionMatchesTable(session, tableCode) {
+  if (!session || !tableCode) return Boolean(session);
+  const tables = await restSelect("restaurant_tables", {
+    id: `eq.${session.table_id}`,
+    public_code: `eq.${tableCode}`,
+    active: "eq.true",
+    select: "id",
+    limit: 1,
+  }, { admin: true });
+  return Boolean(tables?.[0]);
+}
+
+export async function GET(request) {
   try {
     const cookieStore = await cookies();
     const session = await findSessionByToken(cookieStore.get(CUSTOMER_COOKIE)?.value);
-    if (!session) return NextResponse.json({ session: null });
+    const tableCode = new URL(request.url).searchParams.get("tableCode");
+    if (!session || !(await sessionMatchesTable(session, tableCode))) return NextResponse.json({ session: null });
     return NextResponse.json({ session: { ...session, subtotal: Number(session.subtotal), discount: Number(session.discount), service_fee: Number(session.service_fee), total: Number(session.total) } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return apiError(error, "Não foi possível consultar sua comanda.");
