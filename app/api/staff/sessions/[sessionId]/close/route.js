@@ -29,26 +29,39 @@ export async function POST(request, { params }) {
     }, { admin: true });
     const tableCode = tables?.[0]?.public_code || null;
 
+    // A RPC fecha a comanda, registra o pagamento e libera a mesa na mesma transação.
+    // A partir deste ponto a liberação da mesa é a prioridade do fluxo.
     const result = await rpc("close_table_session", {
       p_session_id: sessionId,
       p_employee_id: profile.id,
       p_method: method,
     }, { admin: true });
+    const closed = Array.isArray(result) ? result[0] : result;
 
-    const receiptRows = await restSelect("sales_receipts", {
-      session_id: `eq.${sessionId}`,
-      restaurant_id: `eq.${profile.restaurant_id}`,
-      select: "id,restaurant_id,session_id,receipt_number,table_number,table_label,customer_name,customer_whatsapp,opened_at,closed_at,subtotal,discount,service_fee,total,payment_snapshot,staff_snapshot,items_snapshot,voids_snapshot,closed_by_employee_id,closed_by_name,created_at",
-      limit: 1,
-    }, { admin: true });
-    const receipt = receiptRows?.[0] || null;
-
+    // Avise os terminais imediatamente após a transação confirmar. A geração/leitura
+    // do comprovante nunca deve atrasar a visualização da mesa como disponível.
     await Promise.all([
-      safeRealtimeBroadcast(`restaurant:${profile.restaurant_id}:operations`, "refresh", { type: "session_closed", receiptId: receipt?.id || null }),
+      safeRealtimeBroadcast(`restaurant:${profile.restaurant_id}:operations`, "refresh", { type: "session_closed", tableId: session.table_id }),
       tableCode ? safeRealtimeBroadcast(`table:${tableCode}`, "refresh", { type: "session_closed" }) : Promise.resolve(null),
     ]);
 
-    return NextResponse.json({ closed: Array.isArray(result) ? result[0] : result, receipt });
+    let receipt = null;
+    let receiptWarning = null;
+    try {
+      const receiptRows = await restSelect("sales_receipts", {
+        session_id: `eq.${sessionId}`,
+        restaurant_id: `eq.${profile.restaurant_id}`,
+        select: "id,restaurant_id,session_id,receipt_number,table_number,table_label,customer_name,customer_whatsapp,opened_at,closed_at,subtotal,discount,service_fee,total,payment_snapshot,staff_snapshot,items_snapshot,voids_snapshot,closed_by_employee_id,closed_by_name,created_at",
+        limit: 1,
+      }, { admin: true });
+      receipt = receiptRows?.[0] || null;
+      if (!receipt) receiptWarning = "Pagamento concluído e mesa liberada. O comprovante interno ainda não ficou disponível.";
+    } catch (receiptError) {
+      console.error("Failed to load receipt after session close", receiptError);
+      receiptWarning = "Pagamento concluído e mesa liberada. Não foi possível carregar o comprovante interno agora.";
+    }
+
+    return NextResponse.json({ closed, receipt, receiptWarning, tableReleased: true, tableId: session.table_id });
   } catch (error) {
     return apiError(error, "Não foi possível fechar a mesa.");
   }
