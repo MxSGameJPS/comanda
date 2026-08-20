@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./staff-login.module.css";
 
@@ -14,7 +14,6 @@ const roleLinks = [
 
 export default function StaffLogin() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const demoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO === "true";
@@ -34,7 +33,7 @@ export default function StaffLogin() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Não foi possível entrar.");
 
-      const requested = searchParams.get("next");
+      const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
       const redirectTo = requested?.startsWith("/") ? requested : body.redirectTo;
       router.replace(redirectTo);
       router.refresh();
