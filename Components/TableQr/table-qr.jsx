@@ -1,24 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { makeQrMatrix, qrSvgString } from "@/lib/qr-code";
 import styles from "./table-qr.module.css";
 
-function baseUrl() {
-  const configured = String(process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
-  if (configured) return configured;
-  if (typeof window !== "undefined") return window.location.origin;
-  return "";
-}
+const configuredBaseUrl = String(process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
+const quietZone = 4;
 
 export default function TableQr({ table }) {
-  const url = `${baseUrl()}/m/${table.public_code}`;
-  const matrix = useMemo(() => url ? makeQrMatrix(url) : [], [url]);
+  const [baseUrl, setBaseUrl] = useState(configuredBaseUrl);
+
+  useEffect(() => {
+    if (!configuredBaseUrl) setBaseUrl(window.location.origin.replace(/\/$/, ""));
+  }, []);
+
+  const url = baseUrl ? `${baseUrl}/m/${table.public_code}` : "";
+  const qr = useMemo(() => {
+    if (!url) return { matrix: [], error: "" };
+    try { return { matrix: makeQrMatrix(url), error: "" }; }
+    catch (error) { return { matrix: [], error: error.message || "Não foi possível gerar o QR Code." }; }
+  }, [url]);
   const localhostWarning = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
+  const svgSize = (qr.matrix.length || 1) + quietZone * 2;
 
   function downloadQr() {
-    if (!url) return;
-    const blob = new Blob([qrSvgString(url, 10, 4)], { type: "image/svg+xml;charset=utf-8" });
+    if (!url || qr.error) return;
+    const blob = new Blob([qrSvgString(url, 10, quietZone)], { type: "image/svg+xml;charset=utf-8" });
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
@@ -29,16 +36,17 @@ export default function TableQr({ table }) {
 
   return <div className={styles.wrapper}>
     <div className={styles.qr} aria-label={`QR Code da mesa ${table.number}`}>
-      <svg viewBox={`0 0 ${matrix.length || 1} ${matrix.length || 1}`} shapeRendering="crispEdges" role="img">
+      {qr.matrix.length ? <svg viewBox={`0 0 ${svgSize} ${svgSize}`} shapeRendering="crispEdges" role="img">
         <rect width="100%" height="100%" fill="white" />
-        {matrix.map((row, r) => row.map((dark, c) => dark ? <rect fill="black" height="1" key={`${r}-${c}`} width="1" x={c} y={r} /> : null))}
-      </svg>
+        {qr.matrix.map((row, r) => row.map((dark, c) => dark ? <rect fill="black" height="1" key={`${r}-${c}`} width="1" x={c + quietZone} y={r + quietZone} /> : null))}
+      </svg> : <span>{qr.error ? "QR indisponível" : "Gerando QR..."}</span>}
     </div>
     <div className={styles.actions}>
-      <a href={url} rel="noreferrer" target="_blank">Testar cliente</a>
-      <button onClick={() => navigator.clipboard?.writeText(url)} type="button">Copiar</button>
-      <button onClick={downloadQr} type="button">Baixar QR</button>
+      {url && !qr.error && <a href={url} rel="noreferrer" target="_blank">Testar cliente</a>}
+      <button disabled={!url || Boolean(qr.error)} onClick={() => navigator.clipboard?.writeText(url)} type="button">Copiar</button>
+      <button disabled={!url || Boolean(qr.error)} onClick={downloadQr} type="button">Baixar QR</button>
     </div>
-    {localhostWarning && <small className={styles.warning}>Para ler no celular em desenvolvimento, abra o painel pelo IP da rede ou configure NEXT_PUBLIC_APP_URL.</small>}
+    {qr.error && <small className={styles.warning}>{qr.error}</small>}
+    {localhostWarning && !qr.error && <small className={styles.warning}>No celular, localhost não funciona. Abra o painel pelo endereço de rede ou configure NEXT_PUBLIC_APP_URL com o IP do computador.</small>}
   </div>;
 }
