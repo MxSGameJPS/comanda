@@ -6,6 +6,7 @@ import { restSelect } from "@/lib/supabase/server";
 export async function GET() {
   try {
     const { profile } = await requireStaff(["WAITER", "MANAGER", "ADMIN", "OWNER"]);
+    const realtimeTopic = `restaurant:${profile.restaurant_id}:operations`;
 
     const [categories, stations, products, links] = await Promise.all([
       restSelect("categories", { restaurant_id: `eq.${profile.restaurant_id}`, active: "eq.true", select: "id,name,slug,sort_order", order: "sort_order.asc" }, { admin: true }),
@@ -19,12 +20,12 @@ export async function GET() {
     const sessionIds = [...new Set(links.map((link) => link.session_id))];
 
     if (!sessionIds.length) {
-      return NextResponse.json({ employee: { id: profile.id, name: profile.name, role: profile.role }, categories, products: normalizedProducts, tables: [] }, { headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ employee: { id: profile.id, name: profile.name, role: profile.role }, categories, products: normalizedProducts, tables: [], realtimeTopic }, { headers: { "Cache-Control": "no-store" } });
     }
 
     const sessions = await restSelect("table_sessions", { id: `in.(${sessionIds.join(",")})`, status: "in.(OPEN,PAYMENT_PENDING)", select: "id,table_id,customer_name,customer_whatsapp,status,opened_at,subtotal,total", order: "opened_at.asc" }, { admin: true });
     if (!sessions.length) {
-      return NextResponse.json({ employee: { id: profile.id, name: profile.name, role: profile.role }, categories, products: normalizedProducts, tables: [] }, { headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ employee: { id: profile.id, name: profile.name, role: profile.role }, categories, products: normalizedProducts, tables: [], realtimeTopic }, { headers: { "Cache-Control": "no-store" } });
     }
 
     const activeSessionIds = sessions.map((session) => session.id);
@@ -54,7 +55,7 @@ export async function GET() {
       items: items.filter((item) => item.session_id === session.id).map((item) => ({ ...item, unit_price: Number(item.unit_price), total_price: Number(item.total_price) })),
     }));
 
-    return NextResponse.json({ employee: { id: profile.id, name: profile.name, role: profile.role }, categories, products: normalizedProducts, tables: result }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ employee: { id: profile.id, name: profile.name, role: profile.role }, categories, products: normalizedProducts, tables: result, realtimeTopic }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return apiError(error, "Não foi possível carregar as mesas do garçom.");
   }

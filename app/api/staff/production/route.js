@@ -65,7 +65,11 @@ export async function GET(request) {
       };
     });
 
-    return NextResponse.json({ tables: boardTables, station: code }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({
+      tables: boardTables,
+      station: code,
+      realtimeTopic: `restaurant:${restaurantId}:operations`,
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return apiError(error, "Não foi possível carregar a fila de produção.");
   }

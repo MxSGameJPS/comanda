@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/http";
 import { requireStaff } from "@/lib/auth/staff";
-import { restInsert, restSelect, restUpdate } from "@/lib/supabase/server";
+import { restInsert, restSelect, restUpdate, safeRealtimeBroadcast } from "@/lib/supabase/server";
 
 const transitions = { NEW: "PREPARING", PREPARING: "READY", READY: "SENT" };
 
@@ -27,6 +27,7 @@ export async function PATCH(request, { params }) {
     if (!updated?.length) return NextResponse.json({ error: "O item foi atualizado por outro terminal. Recarregue a fila." }, { status: 409 });
 
     await restInsert("audit_logs", { restaurant_id: profile.restaurant_id, actor_employee_id: profile.id, action: "ORDER_ITEM_STATUS_CHANGED", entity_type: "order_item", entity_id: item.id, before_data: { status: item.status }, after_data: { status: nextStatus }, metadata: { station: stationCode } }, { admin: true });
+    await safeRealtimeBroadcast(`restaurant:${profile.restaurant_id}:operations`, "refresh", { type: "item_status_changed", station: stationCode });
     return NextResponse.json({ item: updated[0] });
   } catch (error) {
     return apiError(error, "Não foi possível atualizar o item.");

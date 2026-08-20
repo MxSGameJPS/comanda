@@ -2,14 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { menuCategories as demoCategories, menuProducts as demoProducts } from "@/lib/mock-data";
+import { subscribeToBroadcast } from "@/lib/realtime/client";
 import styles from "./customer-menu.module.css";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
-function tableLabelFromCode(tableCode) {
-  const numeric = String(tableCode).match(/\d+/)?.[0];
-  return numeric?.padStart(2, "0") || "--";
-}
 
 export default function CustomerMenu({ tableCode }) {
   const demo = tableCode === "demo";
@@ -27,7 +23,7 @@ export default function CustomerMenu({ tableCode }) {
   const [error, setError] = useState("");
   const [closed, setClosed] = useState(false);
 
-  const tableLabel = table?.number ? String(table.number).padStart(2, "0") : tableLabelFromCode(tableCode);
+  const tableLabel = table?.number ? String(table.number).padStart(2, "0") : "--";
   const visibleProducts = products.filter((product) => product.category_id === activeCategory);
   const subtotal = useMemo(() => cart.reduce((total, item) => total + Number(item.product.price) * item.quantity, 0), [cart]);
   const scopedSessionUrl = `/api/public/session?tableCode=${encodeURIComponent(tableCode)}`;
@@ -65,8 +61,10 @@ export default function CustomerMenu({ tableCode }) {
   }, [demo, scopedSessionUrl, tableCode]);
 
   useEffect(() => {
-    if (demo || !session || closed) return;
-    const interval = window.setInterval(async () => {
+    if (demo || closed) return;
+    let unsubscribe = () => {};
+
+    async function refreshSession() {
       try {
         const response = await fetch(scopedSessionUrl, { cache: "no-store" });
         if (!response.ok) return;
@@ -79,9 +77,16 @@ export default function CustomerMenu({ tableCode }) {
           await fetch("/api/public/session", { method: "DELETE" });
         }
       } catch {}
-    }, 2500);
-    return () => window.clearInterval(interval);
-  }, [closed, demo, scopedSessionUrl, session]);
+    }
+
+    subscribeToBroadcast({
+      channel: `table:${tableCode}`,
+      event: "refresh",
+      onChange: refreshSession,
+    }).then((cleanup) => { unsubscribe = cleanup; });
+
+    return () => unsubscribe();
+  }, [closed, demo, scopedSessionUrl, tableCode]);
 
   async function startSession(event) {
     event.preventDefault();

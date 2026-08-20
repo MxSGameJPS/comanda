@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/http";
 import { isEmployeeActive, requireStaff } from "@/lib/auth/staff";
-import { restSelect, rpc, supabaseRequest } from "@/lib/supabase/server";
+import { restSelect, rpc, safeRealtimeBroadcast, supabaseRequest } from "@/lib/supabase/server";
 
 const allowedApproverRoles = ["WAITER", "CASHIER", "MANAGER", "ADMIN", "OWNER"];
 
@@ -52,6 +52,7 @@ export async function POST(request, { params }) {
     }, { admin: true });
 
     const row = Array.isArray(result) ? result[0] : result;
+    await safeRealtimeBroadcast(`restaurant:${operator.restaurant_id}:operations`, "refresh", { type: "item_voided" });
     return NextResponse.json({ voided: row, authorizedBy: { id: approver.id, name: approver.name, role: approver.role } });
   } catch (error) {
     const message = String(error.message || "");

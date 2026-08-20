@@ -76,7 +76,12 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ categories, products: normalizedProducts, tables }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({
+      categories,
+      products: normalizedProducts,
+      tables,
+      realtimeTopic: `restaurant:${restaurantId}:operations`,
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return apiError(error, "Não foi possível carregar as comandas.");
   }

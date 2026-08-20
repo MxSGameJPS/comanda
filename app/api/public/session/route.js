@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/http";
 import { CUSTOMER_COOKIE, createCustomerToken, customerCookieOptions, hashCustomerToken } from "@/lib/customer/session-token";
-import { restSelect, rpc } from "@/lib/supabase/server";
+import { restSelect, rpc, safeRealtimeBroadcast } from "@/lib/supabase/server";
 
 async function findSessionByToken(token) {
   if (!token) return null;
@@ -44,6 +44,15 @@ export async function POST(request) {
     const { tableCode, name, whatsapp } = await request.json();
     if (!tableCode || !name?.trim()) return NextResponse.json({ error: "Informe seu nome." }, { status: 400 });
 
+    const tables = await restSelect("restaurant_tables", {
+      public_code: `eq.${tableCode}`,
+      active: "eq.true",
+      select: "id,restaurant_id",
+      limit: 1,
+    }, { admin: true });
+    const table = tables?.[0];
+    if (!table) return NextResponse.json({ error: "Mesa não encontrada." }, { status: 404 });
+
     const token = createCustomerToken();
     const tokenHash = hashCustomerToken(token);
     const result = await rpc("open_table_session", {
@@ -54,6 +63,8 @@ export async function POST(request) {
     }, { admin: true });
 
     const row = Array.isArray(result) ? result[0] : result;
+    await safeRealtimeBroadcast(`restaurant:${table.restaurant_id}:operations`, "refresh", { type: "session_opened" });
+
     const response = NextResponse.json({ session: row });
     response.cookies.set(CUSTOMER_COOKIE, token, customerCookieOptions);
     return response;

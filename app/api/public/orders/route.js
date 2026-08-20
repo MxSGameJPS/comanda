@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/http";
 import { CUSTOMER_COOKIE, hashCustomerToken } from "@/lib/customer/session-token";
-import { restSelect, rpc } from "@/lib/supabase/server";
+import { restSelect, rpc, safeRealtimeBroadcast } from "@/lib/supabase/server";
 
 export async function POST(request) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request) {
     const tokenHash = hashCustomerToken(token);
     const sessions = await restSelect("table_sessions", {
       customer_access_token_hash: `eq.${tokenHash}`,
-      select: "id,status",
+      select: "id,restaurant_id,status",
       limit: 1,
     }, { admin: true });
     const session = sessions?.[0];
@@ -37,6 +37,7 @@ export async function POST(request) {
       p_items: normalized,
     }, { admin: true });
 
+    await safeRealtimeBroadcast(`restaurant:${session.restaurant_id}:operations`, "refresh", { type: "customer_order_created" });
     return NextResponse.json({ order: Array.isArray(result) ? result[0] : result }, { status: 201 });
   } catch (error) {
     return apiError(error, "Não foi possível enviar seu pedido.");

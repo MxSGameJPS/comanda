@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import TableCard from "@/Components/TableCard/table-card";
 import { productionTables } from "@/lib/mock-data";
-import { subscribeToPostgresChanges } from "@/lib/realtime/client";
+import { subscribeToBroadcast } from "@/lib/realtime/client";
 import styles from "./production-dashboard.module.css";
 
 export default function ProductionDashboard({ station, title }) {
   const [tables, setTables] = useState(process.env.NEXT_PUBLIC_ENABLE_DEMO === "true" ? productionTables.filter((table) => table.items.some((item) => item.station === station)) : []);
   const [connection, setConnection] = useState("connecting");
+  const [realtimeTopic, setRealtimeTopic] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [busyItem, setBusyItem] = useState(null);
   const previousNewCount = useRef(0);
@@ -28,21 +29,26 @@ export default function ProductionDashboard({ station, title }) {
       if (audioEnabled && newCount > previousNewCount.current) playAlert(audioRef);
       previousNewCount.current = newCount;
       setTables(nextTables);
+      setRealtimeTopic(body.realtimeTopic || "");
     } catch {}
   }, [audioEnabled, station]);
 
+  useEffect(() => { load(); }, [load]);
+
   useEffect(() => {
-    load();
+    if (!realtimeTopic) return;
     let unsubscribe = () => {};
-    subscribeToPostgresChanges({
-      channel: `production-${station.toLowerCase()}`,
-      table: "order_items",
-      onStatus: setConnection,
+    subscribeToBroadcast({
+      channel: realtimeTopic,
+      event: "refresh",
+      onStatus: (status) => {
+        setConnection(status);
+        if (status === "connected") load();
+      },
       onChange: load,
     }).then((cleanup) => { unsubscribe = cleanup; });
-    const fallback = window.setInterval(load, 3000);
-    return () => { unsubscribe(); window.clearInterval(fallback); };
-  }, [load, station]);
+    return () => unsubscribe();
+  }, [load, realtimeTopic]);
 
   async function advanceItem(item) {
     setBusyItem(item.id);
@@ -67,7 +73,7 @@ export default function ProductionDashboard({ station, title }) {
   const tablesWithItems = tables.filter((table) => (table.items || []).length > 0).length;
   const availableTables = tables.filter((table) => !table.sessionId).length;
   const newOrders = tables.filter((table) => (table.items || []).some((item) => item.status === "NEW")).length;
-  const connectionLabel = connection === "connected" ? "Realtime" : connection === "reconnecting" ? "Reconectando" : connection === "disabled" ? "Atualização 3s" : "Conectando";
+  const connectionLabel = connection === "connected" ? "Realtime" : connection === "reconnecting" ? "Reconectando" : connection === "disabled" ? "Realtime indisponível" : connection === "error" ? "Erro no Realtime" : "Conectando";
 
   return <main className={styles.page}>
     <header className={styles.header}><div><span className={styles.eyebrow}>Produção</span><h1>{title}</h1><p>Todas as mesas aparecem no painel; pedidos destinados a {title.toLowerCase()} recebem o estado de produção correspondente.</p></div><div className={styles.actions}><div className={styles.online}><span />{connectionLabel}</div><button onClick={() => { setAudioEnabled(true); initializeAudio(audioRef); }} type="button">{audioEnabled ? "Som ativo" : "Ativar som"}</button><button onClick={logout} type="button">Sair</button></div></header>

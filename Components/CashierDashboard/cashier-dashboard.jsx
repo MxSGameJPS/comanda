@@ -5,7 +5,7 @@ import PaymentModal from "@/Components/PaymentModal/payment-modal";
 import VoidItemModal from "@/Components/VoidItemModal/void-item-modal";
 import WaiterOrderModal from "@/Components/WaiterOrderModal/waiter-order-modal";
 import { cashierTables as demoTables } from "@/lib/mock-data";
-import { subscribeToPostgresChanges } from "@/lib/realtime/client";
+import { subscribeToBroadcast } from "@/lib/realtime/client";
 import styles from "./cashier-dashboard.module.css";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -14,6 +14,8 @@ export default function CashierDashboard() {
   const [tables, setTables] = useState(process.env.NEXT_PUBLIC_ENABLE_DEMO === "true" ? demoTables.map((table, index) => ({ ...table, tableId: `demo-table-${index}`, sessionId: `demo-${index}`, total: table.subtotal, items: [] })) : []);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [connection, setConnection] = useState("connecting");
+  const [realtimeTopic, setRealtimeTopic] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [paying, setPaying] = useState(null);
@@ -32,17 +34,27 @@ export default function CashierDashboard() {
         setTables(body.tables || []);
         setCategories(body.categories || []);
         setProducts(body.products || []);
+        setRealtimeTopic(body.realtimeTopic || "");
       }
     } catch {}
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
   useEffect(() => {
-    load();
+    if (!realtimeTopic) return;
     let unsubscribe = () => {};
-    subscribeToPostgresChanges({ channel: "cashier-sessions", table: "table_sessions", onChange: load }).then((cleanup) => { unsubscribe = cleanup; });
-    const fallback = window.setInterval(load, 3000);
-    return () => { unsubscribe(); window.clearInterval(fallback); };
-  }, [load]);
+    subscribeToBroadcast({
+      channel: realtimeTopic,
+      event: "refresh",
+      onStatus: (status) => {
+        setConnection(status);
+        if (status === "connected") load();
+      },
+      onChange: load,
+    }).then((cleanup) => { unsubscribe = cleanup; });
+    return () => unsubscribe();
+  }, [load, realtimeTopic]);
 
   async function closeSession(method) {
     if (!paying || !paying.sessionId || paying.sessionId.startsWith("demo-")) { setPaying(null); return; }
@@ -95,9 +107,10 @@ export default function CashierDashboard() {
   const openTables = tables.filter((table) => Boolean(table.sessionId));
   const availableTables = tables.filter((table) => !table.sessionId);
   const totalOpen = openTables.reduce((sum, table) => sum + Number(table.total ?? table.subtotal ?? 0), 0);
+  const connectionLabel = connection === "connected" ? "Realtime" : connection === "reconnecting" ? "Reconectando" : connection === "disabled" ? "Realtime indisponível" : connection === "error" ? "Erro no Realtime" : "Conectando";
 
   return <main className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>Frente de caixa</span><h1>Caixa</h1><p>Comandas, pagamentos e encerramento das mesas.</p></div><div className={styles.headerActions}><div className={styles.online}><span />Caixa aberto</div><button onClick={logout} type="button">Sair</button></div></header>
+    <header className={styles.header}><div><span className={styles.eyebrow}>Frente de caixa</span><h1>Caixa</h1><p>Comandas, pagamentos e encerramento das mesas.</p></div><div className={styles.headerActions}><div className={styles.online}><span />{connectionLabel}</div><button onClick={logout} type="button">Sair</button></div></header>
     {message && <div className={styles.feedbackSuccess}>{message}</div>}
     {error && <div className={styles.feedbackError} role="alert">{error}</div>}
     <section className={styles.summary}><article><span>Mesas em aberto</span><strong>{openTables.length}</strong></article><article><span>Mesas livres</span><strong>{availableTables.length}</strong></article><article><span>Valor em comandas</span><strong>{money.format(totalOpen)}</strong></article></section>

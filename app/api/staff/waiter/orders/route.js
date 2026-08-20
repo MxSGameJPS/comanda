@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/http";
 import { requireStaff } from "@/lib/auth/staff";
-import { rpc } from "@/lib/supabase/server";
+import { rpc, safeRealtimeBroadcast } from "@/lib/supabase/server";
 
 export async function POST(request) {
   try {
@@ -29,6 +29,7 @@ export async function POST(request) {
     }, { admin: true });
 
     const row = Array.isArray(result) ? result[0] : result;
+    await safeRealtimeBroadcast(`restaurant:${profile.restaurant_id}:operations`, "refresh", { type: "waiter_order_created" });
     return NextResponse.json({ order: row }, { status: 201 });
   } catch (error) {
     const message = String(error.message || "");
