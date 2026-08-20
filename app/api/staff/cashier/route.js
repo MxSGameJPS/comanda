@@ -3,6 +3,8 @@ import { apiError } from "@/lib/http";
 import { requireStaff } from "@/lib/auth/staff";
 import { restSelect } from "@/lib/supabase/server";
 
+const timeFormatter = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" });
+
 export async function GET() {
   try {
     const { profile } = await requireStaff(["CASHIER", "MANAGER", "ADMIN", "OWNER"]);
@@ -28,7 +30,7 @@ export async function GET() {
         customer: session.customer_name,
         whatsapp: session.customer_whatsapp,
         status: session.status,
-        arrival: new Date(session.opened_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        arrival: timeFormatter.format(new Date(session.opened_at)),
         subtotal: Number(session.subtotal),
         discount: Number(session.discount),
         serviceFee: Number(session.service_fee),
