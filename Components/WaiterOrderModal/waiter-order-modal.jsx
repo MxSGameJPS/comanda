@@ -1,18 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import VoidItemModal from "@/Components/VoidItemModal/void-item-modal";
 import styles from "./waiter-order-modal.module.css";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function WaiterOrderModal({ table, categories, products, onClose, onSend, onVoid }) {
-  const [activeCategory, setActiveCategory] = useState(categories?.[0]?.id || null);
+  const [activeCategory, setActiveCategory] = useState(null);
   const [cart, setCart] = useState([]);
   const [notes, setNotes] = useState({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [voidingItem, setVoidingItem] = useState(null);
+
+  useEffect(() => {
+    if (!categories.length) return;
+    setActiveCategory((current) => current && categories.some((category) => category.id === current) ? current : categories[0].id);
+  }, [categories]);
+
+  useEffect(() => {
+    setCart([]);
+    setNotes({});
+    setSending(false);
+    setError("");
+    setVoidingItem(null);
+    if (categories.length) setActiveCategory(categories[0].id);
+  }, [table?.sessionId]);
 
   const visibleProducts = products.filter((product) => product.category_id === activeCategory);
   const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0), [cart]);
