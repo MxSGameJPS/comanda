@@ -10,6 +10,8 @@ const areas = [
 ];
 
 export default function SystemHome({ adminHref }) {
+  const demoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO === "true";
+
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
@@ -33,11 +35,11 @@ export default function SystemHome({ adminHref }) {
             <span className={styles.arrow}>↗</span>
           </Link>
         ))}
-        <Link className={`${styles.card} ${styles.adminCard}`} href={adminHref}>
+        {demoEnabled && <Link className={`${styles.card} ${styles.adminCard}`} href={adminHref}>
           <div className={styles.badge}>AD</div>
           <div><h2>Administração</h2><p>Financeiro, funcionários, produtos, auditoria e indicadores.</p></div>
           <span className={styles.arrow}>↗</span>
-        </Link>
+        </Link>}
       </section>
 
       <footer className={styles.footer}><span className={styles.dot} />Estrutura inicial · Next.js 16 · PWA</footer>
