@@ -8,8 +8,16 @@ const timeFormatter = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute
 export async function GET() {
   try {
     const { profile } = await requireStaff(["CASHIER", "MANAGER", "ADMIN", "OWNER"]);
-    const sessions = await restSelect("table_sessions", { restaurant_id: `eq.${profile.restaurant_id}`, status: "in.(OPEN,PAYMENT_PENDING)", select: "id,table_id,customer_name,customer_whatsapp,status,opened_at,subtotal,discount,service_fee,total", order: "opened_at.asc" }, { admin: true });
-    if (!sessions.length) return NextResponse.json({ tables: [] });
+    const [categories, stations, products, sessions] = await Promise.all([
+      restSelect("categories", { restaurant_id: `eq.${profile.restaurant_id}`, active: "eq.true", select: "id,name,slug,sort_order", order: "sort_order.asc" }, { admin: true }),
+      restSelect("prep_stations", { restaurant_id: `eq.${profile.restaurant_id}`, active: "eq.true", select: "id,code,name" }, { admin: true }),
+      restSelect("products", { restaurant_id: `eq.${profile.restaurant_id}`, active: "eq.true", select: "id,category_id,prep_station_id,name,description,price,image_url", order: "name.asc" }, { admin: true }),
+      restSelect("table_sessions", { restaurant_id: `eq.${profile.restaurant_id}`, status: "in.(OPEN,PAYMENT_PENDING)", select: "id,table_id,customer_name,customer_whatsapp,status,opened_at,subtotal,discount,service_fee,total", order: "opened_at.asc" }, { admin: true }),
+    ]);
+
+    const stationMap = Object.fromEntries(stations.map((station) => [station.id, station]));
+    const normalizedProducts = products.map((product) => ({ ...product, price: Number(product.price), station: stationMap[product.prep_station_id]?.code || "NONE" }));
+    if (!sessions.length) return NextResponse.json({ tables: [], categories, products: normalizedProducts }, { headers: { "Cache-Control": "no-store" } });
 
     const tableIds = [...new Set(sessions.map((session) => session.table_id))];
     const sessionIds = sessions.map((session) => session.id);
@@ -24,6 +32,8 @@ export async function GET() {
     const tableMap = Object.fromEntries(tables.map((table) => [table.id, table]));
 
     return NextResponse.json({
+      categories,
+      products: normalizedProducts,
       tables: sessions.map((session) => ({
         sessionId: session.id,
         number: tableMap[session.table_id]?.number,
