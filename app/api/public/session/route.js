@@ -42,14 +42,14 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const { tableCode, name, whatsapp } = await request.json();
-    if (!tableCode || !name?.trim() || !whatsapp?.trim()) return NextResponse.json({ error: "Informe nome e WhatsApp." }, { status: 400 });
+    if (!tableCode || !name?.trim()) return NextResponse.json({ error: "Informe seu nome." }, { status: 400 });
 
     const token = createCustomerToken();
     const tokenHash = hashCustomerToken(token);
     const result = await rpc("open_table_session", {
       p_table_public_code: tableCode,
       p_customer_name: name.trim(),
-      p_customer_whatsapp: whatsapp.trim(),
+      p_customer_whatsapp: String(whatsapp || "").trim(),
       p_token_hash: tokenHash,
     }, { admin: true });
 
