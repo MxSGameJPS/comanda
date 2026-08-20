@@ -64,17 +64,40 @@ export default function CashierDashboard() {
 
   async function closeSession(method) {
     if (!paying || !paying.sessionId || paying.sessionId.startsWith("demo-")) { setPaying(null); return; }
+    const closingTable = paying;
     setLoadingPayment(true);
     setError("");
     try {
-      const response = await fetch(`/api/staff/sessions/${paying.sessionId}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method }) });
+      const response = await fetch(`/api/staff/sessions/${closingTable.sessionId}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Não foi possível fechar a comanda.");
+
+      // O pagamento confirmado já encerrou a sessão no banco. Atualize o card
+      // imediatamente para que a mesa possa ser reutilizada sem esperar novo fetch.
+      const releasedTableId = body.tableId || closingTable.tableId;
+      setTables((current) => current.map((table) => table.tableId === releasedTableId ? {
+        ...table,
+        sessionId: null,
+        status: "AVAILABLE",
+        tableStatus: "AVAILABLE",
+        customer: null,
+        whatsapp: null,
+        arrival: null,
+        subtotal: 0,
+        discount: 0,
+        serviceFee: 0,
+        total: 0,
+        staff: [],
+        items: [],
+      } : table));
+      setExpanded((current) => current === closingTable.sessionId ? null : current);
       setPaying(null);
       setEditingSessionId(null);
       setReceipt(body.receipt || null);
-      setMessage(body.receipt ? `Pagamento registrado. Comprovante interno #${String(body.receipt.receipt_number).padStart(6,"0")} gerado.` : "Pagamento registrado e mesa liberada.");
-      await load();
+      setMessage(body.receipt ? `Pagamento registrado. Mesa liberada e comprovante interno #${String(body.receipt.receipt_number).padStart(6,"0")} gerado.` : body.receiptWarning || "Pagamento registrado e mesa liberada.");
+
+      // Sincronização de confirmação; a UI não depende desta requisição para liberar a mesa.
+      void load();
     } catch (closeError) {
       setError(closeError.message);
     } finally { setLoadingPayment(false); }
