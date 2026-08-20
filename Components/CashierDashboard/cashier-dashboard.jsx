@@ -21,7 +21,7 @@ export default function CashierDashboard() {
   const [loadingPayment, setLoadingPayment] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const editingTable = useMemo(() => tables.find((table) => table.sessionId === editingSessionId) || null, [editingSessionId, tables]);
+  const editingTable = useMemo(() => editingSessionId ? tables.find((table) => table.sessionId === editingSessionId) || null : null, [editingSessionId, tables]);
 
   const load = useCallback(async () => {
     try {
