@@ -24,7 +24,7 @@ export default function ProductionDashboard({ station, title }) {
       const body = await response.json();
       if (!response.ok) return;
       const nextTables = body.tables || [];
-      const newCount = nextTables.reduce((count, table) => count + table.items.filter((item) => item.status === "NEW").length, 0);
+      const newCount = nextTables.reduce((count, table) => count + (table.items || []).filter((item) => item.status === "NEW").length, 0);
       if (audioEnabled && newCount > previousNewCount.current) playAlert(audioRef);
       previousNewCount.current = newCount;
       setTables(nextTables);
@@ -64,13 +64,15 @@ export default function ProductionDashboard({ station, title }) {
     window.location.href = "/login";
   }
 
-  const newOrders = tables.filter((table) => table.items.some((item) => item.status === "NEW")).length;
+  const tablesWithItems = tables.filter((table) => (table.items || []).length > 0).length;
+  const availableTables = tables.filter((table) => !table.sessionId).length;
+  const newOrders = tables.filter((table) => (table.items || []).some((item) => item.status === "NEW")).length;
   const connectionLabel = connection === "connected" ? "Realtime" : connection === "reconnecting" ? "Reconectando" : connection === "disabled" ? "Atualização 3s" : "Conectando";
 
   return <main className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>Produção</span><h1>{title}</h1><p>Apenas itens destinados a {title.toLowerCase()} aparecem neste painel.</p></div><div className={styles.actions}><div className={styles.online}><span />{connectionLabel}</div><button onClick={() => { setAudioEnabled(true); initializeAudio(audioRef); }} type="button">{audioEnabled ? "Som ativo" : "Ativar som"}</button><button onClick={logout} type="button">Sair</button></div></header>
-    <section className={styles.summary}><div><span>Mesas com itens</span><strong>{tables.length}</strong></div><div><span>Pedidos novos</span><strong>{newOrders}</strong></div><div><span>Atualização</span><strong>{connectionLabel}</strong></div></section>
-    <section className={styles.board}><div className={styles.boardHeader}><div><h2>Fila de produção</h2><p>{tables.length ? "Organizada por mesa e horário de entrada." : "Nenhum item aguardando nesta estação."}</p></div><div className={styles.legend}><span><i className={styles.newDot}/> Novo</span><span><i className={styles.preparingDot}/> Preparando</span><span><i className={styles.readyDot}/> Pronto</span></div></div><div className={styles.grid}>{tables.map((table) => <TableCard busyItem={busyItem} key={table.sessionId || table.number} onAdvance={advanceItem} station={station} table={table} />)}</div></section>
+    <header className={styles.header}><div><span className={styles.eyebrow}>Produção</span><h1>{title}</h1><p>Todas as mesas aparecem no painel; pedidos destinados a {title.toLowerCase()} recebem o estado de produção correspondente.</p></div><div className={styles.actions}><div className={styles.online}><span />{connectionLabel}</div><button onClick={() => { setAudioEnabled(true); initializeAudio(audioRef); }} type="button">{audioEnabled ? "Som ativo" : "Ativar som"}</button><button onClick={logout} type="button">Sair</button></div></header>
+    <section className={styles.summary}><div><span>Mesas cadastradas</span><strong>{tables.length}</strong></div><div><span>Mesas livres</span><strong>{availableTables}</strong></div><div><span>Pedidos novos</span><strong>{newOrders}</strong></div></section>
+    <section className={styles.board}><div className={styles.boardHeader}><div><h2>Mesas e produção</h2><p>{tables.length ? `${tablesWithItems} mesa(s) com itens nesta estação.` : "Nenhuma mesa ativa cadastrada."}</p></div><div className={styles.legend}><span><i className={styles.newDot}/> Novo</span><span><i className={styles.preparingDot}/> Preparando</span><span><i className={styles.readyDot}/> Pronto</span></div></div><div className={styles.grid}>{tables.map((table) => <TableCard busyItem={busyItem} key={table.tableId || table.sessionId || table.number} onAdvance={advanceItem} station={station} table={table} />)}</div></section>
   </main>;
 }
 
