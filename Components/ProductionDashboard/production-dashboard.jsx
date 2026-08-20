@@ -11,6 +11,7 @@ export default function ProductionDashboard({ station, title }) {
   const [connection, setConnection] = useState("connecting");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [busyItem, setBusyItem] = useState(null);
+  const previousNewCount = useRef(0);
   const audioRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -21,9 +22,14 @@ export default function ProductionDashboard({ station, title }) {
         return;
       }
       const body = await response.json();
-      if (response.ok) setTables(body.tables || []);
+      if (!response.ok) return;
+      const nextTables = body.tables || [];
+      const newCount = nextTables.reduce((count, table) => count + table.items.filter((item) => item.status === "NEW").length, 0);
+      if (audioEnabled && newCount > previousNewCount.current) playAlert(audioRef);
+      previousNewCount.current = newCount;
+      setTables(nextTables);
     } catch {}
-  }, [station]);
+  }, [audioEnabled, station]);
 
   useEffect(() => {
     load();
@@ -32,15 +38,11 @@ export default function ProductionDashboard({ station, title }) {
       channel: `production-${station.toLowerCase()}`,
       table: "order_items",
       onStatus: setConnection,
-      onChange: async (payload) => {
-        const type = payload?.data?.type || payload?.type;
-        if (audioEnabled && (!type || type === "INSERT")) playAlert(audioRef);
-        await load();
-      },
+      onChange: load,
     }).then((cleanup) => { unsubscribe = cleanup; });
-    const fallback = window.setInterval(load, 15000);
+    const fallback = window.setInterval(load, 3000);
     return () => { unsubscribe(); window.clearInterval(fallback); };
-  }, [audioEnabled, load, station]);
+  }, [load, station]);
 
   async function advanceItem(item) {
     setBusyItem(item.id);
@@ -63,7 +65,7 @@ export default function ProductionDashboard({ station, title }) {
   }
 
   const newOrders = tables.filter((table) => table.items.some((item) => item.status === "NEW")).length;
-  const connectionLabel = connection === "connected" ? "Realtime" : connection === "reconnecting" ? "Reconectando" : connection === "disabled" ? "Sem Supabase" : "Conectando";
+  const connectionLabel = connection === "connected" ? "Realtime" : connection === "reconnecting" ? "Reconectando" : connection === "disabled" ? "Atualização 3s" : "Conectando";
 
   return <main className={styles.page}>
     <header className={styles.header}><div><span className={styles.eyebrow}>Produção</span><h1>{title}</h1><p>Apenas itens destinados a {title.toLowerCase()} aparecem neste painel.</p></div><div className={styles.actions}><div className={styles.online}><span />{connectionLabel}</div><button onClick={() => { setAudioEnabled(true); initializeAudio(audioRef); }} type="button">{audioEnabled ? "Som ativo" : "Ativar som"}</button><button onClick={logout} type="button">Sair</button></div></header>
