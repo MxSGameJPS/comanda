@@ -1,7 +1,19 @@
--- Hotfix: resolve PL/pgSQL ambiguity between the function output column `status`
--- and table columns named `status` inside open_table_session.
+-- Hotfix for databases created from an older partial schema.
 -- Safe to run more than once.
 
+-- Older installations may already have table_sessions without this column because
+-- CREATE TABLE IF NOT EXISTS does not add columns to an existing table.
+alter table public.table_sessions
+  add column if not exists customer_access_token_hash text;
+
+-- Keep legacy rows valid (they may not have a browser token), while guaranteeing
+-- uniqueness for all new customer sessions that do have one.
+create unique index if not exists table_sessions_customer_access_token_hash_uq
+  on public.table_sessions(customer_access_token_hash)
+  where customer_access_token_hash is not null;
+
+-- Resolve PL/pgSQL ambiguity between the output column `status` and table columns
+-- named `status` inside open_table_session.
 create or replace function public.open_table_session(
   p_table_public_code uuid,
   p_customer_name text,
