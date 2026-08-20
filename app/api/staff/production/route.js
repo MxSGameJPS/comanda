@@ -7,6 +7,7 @@ const stationRoles = {
   KITCHEN: ["KITCHEN", "MANAGER", "ADMIN", "OWNER"],
   BAR: ["BAR", "MANAGER", "ADMIN", "OWNER"],
 };
+const timeFormatter = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" });
 
 export async function GET(request) {
   try {
@@ -39,7 +40,7 @@ export async function GET(request) {
       const session = sessionMap[item.session_id];
       const table = session && tableMap[session.table_id];
       if (!session || !table) continue;
-      if (!grouped.has(session.id)) grouped.set(session.id, { sessionId: session.id, number: table.number, openedAt: new Date(session.opened_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }), items: [] });
+      if (!grouped.has(session.id)) grouped.set(session.id, { sessionId: session.id, number: table.number, openedAt: timeFormatter.format(new Date(session.opened_at)), items: [] });
       grouped.get(session.id).items.push({ id: item.id, name: item.product_name_snapshot, quantity: item.quantity, observation: item.observation, status: item.status, station: code });
     }
 
