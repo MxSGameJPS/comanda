@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { makeQrMatrix, qrSvgString } from "@/lib/qr-code";
+import { qrSvgString } from "@/lib/qr-code";
 import styles from "./table-qr.module.css";
 
 const configuredBaseUrl = String(process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
@@ -16,16 +16,19 @@ export default function TableQr({ table }) {
 
   const url = baseUrl ? `${baseUrl}/m/${table.public_code}` : "";
   const qr = useMemo(() => {
-    if (!url) return { matrix: [], error: "" };
-    try { return { matrix: makeQrMatrix(url), error: "" }; }
-    catch (error) { return { matrix: [], error: error.message || "Não foi possível gerar o QR Code." }; }
+    if (!url) return { svg: "", dataUrl: "", error: "" };
+    try {
+      const svg = qrSvgString(url, 10, quietZone);
+      return { svg, dataUrl: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, error: "" };
+    } catch (error) {
+      return { svg: "", dataUrl: "", error: error.message || "Não foi possível gerar o QR Code." };
+    }
   }, [url]);
   const localhostWarning = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
-  const svgSize = (qr.matrix.length || 1) + quietZone * 2;
 
   function downloadQr() {
-    if (!url || qr.error) return;
-    const blob = new Blob([qrSvgString(url, 10, quietZone)], { type: "image/svg+xml;charset=utf-8" });
+    if (!qr.svg || qr.error) return;
+    const blob = new Blob([qr.svg], { type: "image/svg+xml;charset=utf-8" });
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
@@ -35,11 +38,8 @@ export default function TableQr({ table }) {
   }
 
   return <div className={styles.wrapper}>
-    <div className={styles.qr} aria-label={`QR Code da mesa ${table.number}`}>
-      {qr.matrix.length ? <svg viewBox={`0 0 ${svgSize} ${svgSize}`} shapeRendering="crispEdges" role="img">
-        <rect width="100%" height="100%" fill="white" />
-        {qr.matrix.map((row, r) => row.map((dark, c) => dark ? <rect fill="black" height="1" key={`${r}-${c}`} width="1" x={c + quietZone} y={r + quietZone} /> : null))}
-      </svg> : <span>{qr.error ? "QR indisponível" : "Gerando QR..."}</span>}
+    <div className={styles.qr}>
+      {qr.dataUrl ? <img alt={`QR Code da mesa ${table.number}`} src={qr.dataUrl} /> : <span>{qr.error ? "QR indisponível" : "Gerando QR..."}</span>}
     </div>
     <div className={styles.actions}>
       {url && !qr.error && <a href={url} rel="noreferrer" target="_blank">Testar cliente</a>}
