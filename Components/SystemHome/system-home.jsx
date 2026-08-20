@@ -1,8 +1,7 @@
 import Link from "next/link";
 import styles from "./system-home.module.css";
 
-const areas = [
-  { title: "Cliente", description: "Cardápio por QR Code, pedido e subtotal da mesa.", href: "/m/demo", badge: "QR" },
+const staffAreas = [
   { title: "Garçom", description: "Mesas atendidas, leitura do QR e inclusão de itens.", href: "/garcom", badge: "G" },
   { title: "Cozinha", description: "Fila de preparo apenas com itens da cozinha.", href: "/cozinha", badge: "CZ" },
   { title: "Copa", description: "Fila de bebidas e itens destinados à copa.", href: "/copa", badge: "CP" },
@@ -11,6 +10,10 @@ const areas = [
 
 export default function SystemHome({ adminHref }) {
   const demoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO === "true";
+  const areas = demoEnabled ? [
+    { title: "Cliente · Demo", description: "Atalho de desenvolvimento para o cardápio demonstrativo.", href: "/m/demo", badge: "QR" },
+    ...staffAreas,
+  ] : staffAreas;
 
   return (
     <main className={styles.page}>
@@ -24,7 +27,7 @@ export default function SystemHome({ adminHref }) {
       </section>
 
       <section className={styles.flow} aria-label="Fluxo operacional">
-        <span>Cliente</span><i>→</i><span>Produção</span><i>→</i><span>Atendimento</span><i>→</i><span>Caixa</span>
+        <span>Cliente por QR</span><i>→</i><span>Produção</span><i>→</i><span>Atendimento</span><i>→</i><span>Caixa</span>
       </section>
 
       <section className={styles.grid}>
@@ -42,7 +45,7 @@ export default function SystemHome({ adminHref }) {
         </Link>}
       </section>
 
-      <footer className={styles.footer}><span className={styles.dot} />Estrutura inicial · Next.js 16 · PWA</footer>
+      <footer className={styles.footer}><span className={styles.dot} />Cliente real por QR · Next.js 16 · PWA</footer>
     </main>
   );
 }
