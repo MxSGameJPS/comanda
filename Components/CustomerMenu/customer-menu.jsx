@@ -30,6 +30,7 @@ export default function CustomerMenu({ tableCode }) {
   const tableLabel = table?.number ? String(table.number).padStart(2, "0") : tableLabelFromCode(tableCode);
   const visibleProducts = products.filter((product) => product.category_id === activeCategory);
   const subtotal = useMemo(() => cart.reduce((total, item) => total + Number(item.product.price) * item.quantity, 0), [cart]);
+  const scopedSessionUrl = `/api/public/session?tableCode=${encodeURIComponent(tableCode)}`;
 
   useEffect(() => {
     if (demo) return;
@@ -38,7 +39,7 @@ export default function CustomerMenu({ tableCode }) {
       try {
         const [tableResponse, sessionResponse] = await Promise.all([
           fetch(`/api/public/tables/${encodeURIComponent(tableCode)}`, { cache: "no-store" }),
-          fetch("/api/public/session", { cache: "no-store" }),
+          fetch(scopedSessionUrl, { cache: "no-store" }),
         ]);
         const tableBody = await tableResponse.json();
         const sessionBody = await sessionResponse.json();
@@ -61,13 +62,13 @@ export default function CustomerMenu({ tableCode }) {
     }
     bootstrap();
     return () => { cancelled = true; };
-  }, [demo, tableCode]);
+  }, [demo, scopedSessionUrl, tableCode]);
 
   useEffect(() => {
     if (demo || !session || closed) return;
     const interval = window.setInterval(async () => {
       try {
-        const response = await fetch("/api/public/session", { cache: "no-store" });
+        const response = await fetch(scopedSessionUrl, { cache: "no-store" });
         if (!response.ok) return;
         const body = await response.json();
         if (!body.session) return;
@@ -80,7 +81,7 @@ export default function CustomerMenu({ tableCode }) {
       } catch {}
     }, 2500);
     return () => window.clearInterval(interval);
-  }, [closed, demo, session]);
+  }, [closed, demo, scopedSessionUrl, session]);
 
   async function startSession(event) {
     event.preventDefault();
@@ -175,7 +176,7 @@ export default function CustomerMenu({ tableCode }) {
     </section></main>;
   }
 
-  const openedTime = new Date(customer.openedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const openedTime = new Date(customer.openedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 
   return <main className={styles.page}>
     <header className={styles.header}><div><span className={styles.eyebrow}>Mesa {tableLabel}</span><h1>Olá, {customer.name.split(" ")[0]}.</h1><p>Comanda aberta às {openedTime}</p></div><div className={styles.status}><span />Comanda aberta</div></header>
