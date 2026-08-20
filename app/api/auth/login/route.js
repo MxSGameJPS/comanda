@@ -3,15 +3,19 @@ import { apiError } from "@/lib/http";
 import { isEmployeeActive, setStaffCookies } from "@/lib/auth/staff";
 import { restSelect, restUpdate, supabaseRequest } from "@/lib/supabase/server";
 
-const redirects = {
-  OWNER: "/controle/gestao",
-  ADMIN: "/controle/gestao",
-  MANAGER: "/controle/gestao",
-  CASHIER: "/caixa",
-  WAITER: "/garcom",
-  KITCHEN: "/cozinha",
-  BAR: "/copa",
-};
+function getRedirect(role) {
+  const adminRoute = `/controle/${process.env.ADMIN_ROUTE_SLUG || "gestao"}`;
+  const redirects = {
+    OWNER: adminRoute,
+    ADMIN: adminRoute,
+    MANAGER: adminRoute,
+    CASHIER: "/caixa",
+    WAITER: "/garcom",
+    KITCHEN: "/cozinha",
+    BAR: "/copa",
+  };
+  return redirects[role] || "/login";
+}
 
 export async function POST(request) {
   try {
@@ -44,7 +48,7 @@ export async function POST(request) {
     await setStaffCookies(session);
     return NextResponse.json({
       employee: { id: profile.id, name: profile.name, role: profile.role },
-      redirectTo: redirects[profile.role] || "/login",
+      redirectTo: getRedirect(profile.role),
     });
   } catch (error) {
     if (error.status === 400) error.message = "E-mail ou senha inválidos.";
