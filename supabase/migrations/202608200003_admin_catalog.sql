@@ -8,6 +8,10 @@ alter table public.restaurant_tables
 alter table public.products
   add column if not exists sort_order integer not null default 0;
 
+create unique index if not exists one_owner_per_restaurant
+  on public.employee_profiles(restaurant_id)
+  where role = 'OWNER';
+
 create index if not exists idx_products_restaurant_active_sort
   on public.products(restaurant_id, active, sort_order, name);
 
