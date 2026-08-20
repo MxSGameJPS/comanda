@@ -35,12 +35,20 @@ export async function POST(request, { params }) {
       p_method: method,
     }, { admin: true });
 
+    const receiptRows = await restSelect("sales_receipts", {
+      session_id: `eq.${sessionId}`,
+      restaurant_id: `eq.${profile.restaurant_id}`,
+      select: "id,restaurant_id,session_id,receipt_number,table_number,table_label,customer_name,customer_whatsapp,opened_at,closed_at,subtotal,discount,service_fee,total,payment_snapshot,staff_snapshot,items_snapshot,voids_snapshot,closed_by_employee_id,closed_by_name,created_at",
+      limit: 1,
+    }, { admin: true });
+    const receipt = receiptRows?.[0] || null;
+
     await Promise.all([
-      safeRealtimeBroadcast(`restaurant:${profile.restaurant_id}:operations`, "refresh", { type: "session_closed" }),
+      safeRealtimeBroadcast(`restaurant:${profile.restaurant_id}:operations`, "refresh", { type: "session_closed", receiptId: receipt?.id || null }),
       tableCode ? safeRealtimeBroadcast(`table:${tableCode}`, "refresh", { type: "session_closed" }) : Promise.resolve(null),
     ]);
 
-    return NextResponse.json({ closed: Array.isArray(result) ? result[0] : result });
+    return NextResponse.json({ closed: Array.isArray(result) ? result[0] : result, receipt });
   } catch (error) {
     return apiError(error, "Não foi possível fechar a mesa.");
   }

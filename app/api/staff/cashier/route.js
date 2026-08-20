@@ -9,12 +9,13 @@ export async function GET() {
   try {
     const { profile } = await requireStaff(["CASHIER", "MANAGER", "ADMIN", "OWNER"]);
     const restaurantId = profile.restaurant_id;
-    const [categories, stations, products, sessions, restaurantTables] = await Promise.all([
+    const [categories, stations, products, sessions, restaurantTables, receipts] = await Promise.all([
       restSelect("categories", { restaurant_id: `eq.${restaurantId}`, active: "eq.true", select: "id,name,slug,sort_order", order: "sort_order.asc" }, { admin: true }),
       restSelect("prep_stations", { restaurant_id: `eq.${restaurantId}`, active: "eq.true", select: "id,code,name" }, { admin: true }),
       restSelect("products", { restaurant_id: `eq.${restaurantId}`, active: "eq.true", select: "id,category_id,prep_station_id,name,description,price,image_url", order: "name.asc" }, { admin: true }),
       restSelect("table_sessions", { restaurant_id: `eq.${restaurantId}`, status: "in.(OPEN,PAYMENT_PENDING)", select: "id,table_id,customer_name,customer_whatsapp,status,opened_at,subtotal,discount,service_fee,total", order: "opened_at.asc" }, { admin: true }),
       restSelect("restaurant_tables", { restaurant_id: `eq.${restaurantId}`, active: "eq.true", select: "id,number,label,status", order: "number.asc" }, { admin: true }),
+      restSelect("sales_receipts", { restaurant_id: `eq.${restaurantId}`, select: "id,receipt_number,table_number,table_label,customer_name,closed_at,total,payment_snapshot", order: "closed_at.desc", limit: 10 }, { admin: true }),
     ]);
 
     const stationMap = Object.fromEntries(stations.map((station) => [station.id, station]));
@@ -80,6 +81,7 @@ export async function GET() {
       categories,
       products: normalizedProducts,
       tables,
+      receipts,
       realtimeTopic: `restaurant:${restaurantId}:operations`,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

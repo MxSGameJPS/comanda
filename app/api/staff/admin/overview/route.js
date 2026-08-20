@@ -11,13 +11,14 @@ export async function GET() {
     const { profile } = await requireStaff(["OWNER", "ADMIN", "MANAGER"]);
     const start = `${saoPauloDate()}T00:00:00-03:00`;
 
-    const [closedSessions, openSessions, voids, payments, employees, audit] = await Promise.all([
+    const [closedSessions, openSessions, voids, payments, employees, audit, receipts] = await Promise.all([
       restSelect("table_sessions", { restaurant_id: `eq.${profile.restaurant_id}`, status: "eq.CLOSED", closed_at: `gte.${start}`, select: "id,total,closed_at" }, { admin: true }),
       restSelect("table_sessions", { restaurant_id: `eq.${profile.restaurant_id}`, status: "in.(OPEN,PAYMENT_PENDING)", select: "id,table_id,status,total" }, { admin: true }),
       restSelect("item_voids", { restaurant_id: `eq.${profile.restaurant_id}`, created_at: `gte.${start}`, select: "id,session_id,product_name_snapshot,quantity,total_price,reason,employee_id,created_at", order: "created_at.desc" }, { admin: true }),
       restSelect("payments", { restaurant_id: `eq.${profile.restaurant_id}`, created_at: `gte.${start}`, select: "id,session_id,method,amount,employee_id,created_at" }, { admin: true }),
       restSelect("employee_profiles", { restaurant_id: `eq.${profile.restaurant_id}`, is_active: "eq.true", select: "id,name,role,employment_type,active_from,active_until,is_active", order: "name.asc" }, { admin: true }),
       restSelect("audit_logs", { restaurant_id: `eq.${profile.restaurant_id}`, select: "id,actor_employee_id,action,entity_type,entity_id,after_data,metadata,created_at", order: "created_at.desc", limit: 25 }, { admin: true }),
+      restSelect("sales_receipts", { restaurant_id: `eq.${profile.restaurant_id}`, select: "id,receipt_number,session_id,table_number,table_label,customer_name,closed_at,total,payment_snapshot,closed_by_name", order: "closed_at.desc", limit: 25 }, { admin: true }),
     ]);
 
     const sales = closedSessions.reduce((sum, session) => sum + Number(session.total || 0), 0);
@@ -55,6 +56,8 @@ export async function GET() {
       paymentMethods,
       employees,
       audit: auditRows,
+      receipts,
+      realtimeTopic: `restaurant:${profile.restaurant_id}:operations`,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return apiError(error, "Não foi possível carregar o painel administrativo.");
