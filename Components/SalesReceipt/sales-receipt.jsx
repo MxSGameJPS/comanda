@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { printSalesReceipt } from "@/lib/print/sales-receipt";
 import styles from "./sales-receipt.module.css";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -11,12 +13,21 @@ function numberLabel(value) {
 }
 
 export default function SalesReceipt({ receipt, onClose, mode = "customer" }) {
+  const [printError, setPrintError] = useState("");
   if (!receipt) return null;
   const admin = mode === "admin";
   const items = Array.isArray(receipt.items_snapshot) ? receipt.items_snapshot : [];
   const payments = Array.isArray(receipt.payment_snapshot) ? receipt.payment_snapshot : [];
   const staff = Array.isArray(receipt.staff_snapshot) ? receipt.staff_snapshot : [];
   const voids = Array.isArray(receipt.voids_snapshot) ? receipt.voids_snapshot : [];
+
+  function handlePrint() {
+    setPrintError("");
+    const opened = printSalesReceipt(receipt, { mode });
+    if (!opened) {
+      setPrintError("O navegador bloqueou a janela de impressão. Libere pop-ups para este site e tente novamente.");
+    }
+  }
 
   return <div className={styles.backdrop} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }} role="presentation">
     <section aria-modal="true" className={styles.modal} role="dialog">
@@ -38,7 +49,8 @@ export default function SalesReceipt({ receipt, onClose, mode = "customer" }) {
 
         <footer className={styles.paperFooter}><span>Fechado por: {receipt.closed_by_name || "Sistema"}</span><strong>DOCUMENTO INTERNO · SEM VALOR FISCAL</strong></footer>
       </div>
-      <div className={styles.actions}><button onClick={onClose} type="button">Fechar</button><button className={styles.print} onClick={() => window.print()} type="button">Imprimir comprovante</button></div>
+      {printError && <p className={styles.printError} role="alert">{printError}</p>}
+      <div className={styles.actions}><button onClick={onClose} type="button">Fechar</button><button className={styles.print} onClick={handlePrint} type="button">Imprimir cupom</button></div>
     </section>
   </div>;
 }
